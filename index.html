@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Experimental GLSL Signed Distance Function Demo</title>
-    <script src="scripts/jquery-1.11.0.min.js"></script>
-    <script src="scripts/require.js"></script>
-    <link rel="stylesheet" href="main.css" />
+    <title> Experimental GLSL Signed Distance Function Demo </title>
+    <script src = "scripts/jquery-1.11.0.min.js"></script>
+    <script src = "scripts/require.js"></script>
+    <link rel = "stylesheet" href = "main.css" />
     <!--script src="fun.js"></script-->
 </head>
 
@@ -15,23 +15,25 @@
 
     Dragging left/right adjusts number of iterations (segmentation size).
 </p>
-<canvas id="renderCanvas"></canvas>
-<table id='parameters'>
+<canvas id = "renderCanvas"></canvas>
+<table id = "parameters">
     <tr>
         <th style="text-align:left">Number of Iterations</th>
     </tr><tr>
-    <td><input type="range" min="1" max="3000" value="300" step="2" id="numberOfIterations"></td>
+    <td><input type = "range" min = "1" max = "3000" value = "300" step = "2" id = "numberOfIterations"></td>
 </tr><tr>
     <th style="text-align:left">Edge Weight</th>
 </tr><tr>
-    <td><input type="range" min="0" max="200" value="10" step="1" id="edgeWeight"></td>
+    <td><input type = "range" min = "0" max = "200" value = "10" step = "1" id = "edgeWeight"></td>
 </tr>
 </table>
+
+<p id = "log">Log output...<p>
 
 <h2>Source Image</h2>
 
 <!-- <img id="sourceImage" class='drawable' src="./coronal-mr-tumor.png" ></img> -->
-<img id="sourceImage" class='drawable' src="res/lung-lesion512.png" />
+<img id = "sourceImage" class = "drawable" src = "res/lung-lesion512.png" />
 
 <!--script id="vertexShader" type="x-shader/x-vertex">
 precision highp float;
@@ -59,7 +61,7 @@ uniform sampler2D sourceTextureSampler;
 uniform sampler2D intermediateTextureSampler;
 uniform vec2 sourceTextureSize;
 uniform vec2 sourceTexelSize;
-uniform vec2 focusPoint;
+uniform vec2 seedPoint;
 uniform int iteration;
 uniform int numberOfIterations;
 uniform float edgeWeight;
@@ -93,7 +95,7 @@ void main(void) {
   vec4 outputColor;
 
   if (iteration == 0) {
-    if ( length(varyingTextureCoordinate - focusPoint) < .03 ) {
+    if ( length(varyingTextureCoordinate - seedPoint) < .03 ) {
       outputColor = pack_float( .999 );
     } else {
       outputColor = pack_float( 0. );
@@ -148,7 +150,7 @@ void main(void) {
     } else {
       outputColor = sourceColor;
     }
-    if ( length(varyingTextureCoordinate - focusPoint) < .01 ) {
+    if ( length(varyingTextureCoordinate - seedPoint) < .01 ) {
       outputColor += vec4(-.4, -.4, .6, 1.);
     }
   }
@@ -161,6 +163,6 @@ void main(void) {
 <p>
     This demo uses WebGL.  Not all devices and browsers are supported.
 </p>
-<script src="main.js"></script>
+<script src = "main.js"></script>
 </body>
 </html>
