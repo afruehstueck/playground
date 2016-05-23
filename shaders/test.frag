@@ -92,12 +92,14 @@ void main( void ) {
 
   if ( iteration == numberOfIterations ) {
     if ( phi > .001 && phi < 0.1 ) {
-      outputColor = sourceColor + vec4( .4, .4, -.2, 1.0 );
+      outputColor = vec4( 0.0, 0.0, 1.0, 1.0 ); //outline of border
+      //outputColor = sourceColor + vec4( .4, .4, -.2, 1.0 );
     } else {
       outputColor = sourceColor;
     }
     if ( length( varyingTextureCoordinate - seedPoint ) < .01 ) {
-      outputColor += vec4( -.4, -.4, .6, 1. );
+      outputColor = vec4( 0.0, 1.0, 0.0, 1.0 ); //seed point
+      //outputColor += vec4( -.4, -.4, .6, 1. );
     }
   }
 

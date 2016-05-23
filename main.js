@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 var seedPoint = [ 0.8, 0.6 ], // holds a value to be passed as a uniform to the shader
     numberOfIterations = 300,
@@ -17,18 +17,18 @@ gl.depthFunc( gl.LEQUAL ); // Near things obscure far things
 // buffers for the textured plane in normalized space
 var renderImageCoordinatesBuffer = gl.createBuffer();
 var renderImageTextureCoordinatesBuffer = gl.createBuffer();
-var renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1.,  1., 0., 1.,  1., 0. ];
+var renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1., 1., 0., 1., 1., 0. ];
 gl.bindBuffer( gl.ARRAY_BUFFER, renderImageCoordinatesBuffer );
 gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( renderImageVertices ), gl.STATIC_DRAW );
 
-var renderImageTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
+var renderImageTextureCoordinates = [ 0, 0, 1, 0, 0, 1, 1, 1 ];
 gl.bindBuffer( gl.ARRAY_BUFFER, renderImageTextureCoordinatesBuffer );
-gl.bufferData( gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates ), gl.STATIC_DRAW );
+gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( renderImageTextureCoordinates ), gl.STATIC_DRAW );
 
 // the source texture
 var sourceTextureImage; // = new Image();
 var sourceTexture = gl.createTexture();
-var setupSourceTexture = function() {
+var setupSourceTexture = function () {
     gl.activeTexture( gl.TEXTURE0 );
     gl.bindTexture( gl.TEXTURE_2D, sourceTexture );
     gl.pixelStorei( gl.UNPACK_FLIP_Y_WEBGL, true );
@@ -46,11 +46,11 @@ var setupSourceTexture = function() {
 // extra textures and framebuffers for intermediate results of iterative filters and pipelines
 var textures = [];
 var framebuffers = [];
-var setupFrameBuffers = function() {
+
+var setupFrameBuffers = function () {
     for ( var idx = 0; idx < 2; ++idx ) {
         // create a texture for the frame buffer
         var texture = gl.createTexture();
-        //gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture( gl.TEXTURE_2D, texture );
         //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // do this now at end? or not needed for intermediates? jvm
         gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, sourceTextureImage.width, sourceTextureImage.height, 0,
@@ -78,7 +78,7 @@ var glProgram = gl.createProgram();
 var deferred = $.Deferred();
 
 /* Loading fragment and vertex shaders using require.js */
-var setupShaders = function( fragmentShaderLocation, vertexShaderLocation ) {
+var setupShaders = function ( fragmentShaderLocation, vertexShaderLocation ) {
     require( [ fragmentShaderLocation, vertexShaderLocation ],
         /* Callback function initializing shaders when all resources have been loaded */
         function ( fragmentShaderCode, vertexShaderCode ) {
@@ -105,13 +105,39 @@ var setupShaders = function( fragmentShaderLocation, vertexShaderLocation ) {
             gl.deleteShader( fragmentShader );
 
             gl.linkProgram( glProgram );
-
             deferred.resolve();
         }
     );
 
     return deferred.promise();
 };
+
+/* attrib locations */
+var loc_coordinate,
+    loc_texCoord;
+
+/* uniform locations */
+var loc_seedPoint,
+    loc_sourceTextureSize,
+    loc_sourceTexelSize,
+    loc_sourceTextureSampler,
+    loc_intermediateTextureSampler,
+    loc_numIteration,
+    loc_edgeWeight,
+    loc_iteration;
+
+var storeLocations = function () {
+    loc_coordinate = gl.getAttribLocation( glProgram, 'coordinate' );
+    loc_texCoord = gl.getAttribLocation( glProgram, 'textureCoordinate' );
+    loc_seedPoint = gl.getUniformLocation( glProgram, 'seedPoint' );
+    loc_sourceTextureSize = gl.getUniformLocation( glProgram, 'sourceTextureSize' );
+    loc_sourceTexelSize = gl.getUniformLocation( glProgram, 'sourceTexelSize' );
+    loc_sourceTextureSampler = gl.getUniformLocation( glProgram, 'sourceTextureSampler' );
+    loc_intermediateTextureSampler = gl.getUniformLocation( glProgram, 'intermediateTextureSampler' );
+    loc_numIteration = gl.getUniformLocation( glProgram, 'numberOfIterations' );
+    loc_edgeWeight = gl.getUniformLocation( glProgram, 'edgeWeight' );
+    loc_iteration = gl.getUniformLocation( glProgram, 'iteration' );
+}
 
 // render a frame
 function render() {
@@ -121,58 +147,54 @@ function render() {
     gl.useProgram( glProgram );
 
     // set up the focus point (pointer position)
-    gl.uniform2f( gl.getUniformLocation( glProgram, "seedPoint" ), seedPoint[ 0 ], seedPoint[ 1 ] );
+    gl.uniform2f( loc_seedPoint, seedPoint[ 0 ], seedPoint[ 1 ] );
 
     // set up the sourceTextureSize
-    gl.uniform2f( gl.getUniformLocation( glProgram, "sourceTextureSize" ), sourceTextureSize[ 0 ], sourceTextureSize[ 1 ] );
+    gl.uniform2f( loc_sourceTextureSize, sourceTextureSize[ 0 ], sourceTextureSize[ 1 ] );
 
     // set up the sourceTexelSize
-    gl.uniform2f( gl.getUniformLocation( glProgram, "sourceTexelSize" ), 1.0 / sourceTextureSize[ 0 ], 1.0 / sourceTextureSize[ 1 ] );
+    gl.uniform2f( loc_sourceTexelSize, 1.0 / sourceTextureSize[ 0 ], 1.0 / sourceTextureSize[ 1 ] );
 
     // the sourceTexture
     gl.activeTexture( gl.TEXTURE0 );  // bind sourceTexture to texture unit 0
     gl.bindTexture( gl.TEXTURE_2D, sourceTexture );
-    gl.uniform1i( gl.getUniformLocation( glProgram, "sourceTextureSampler" ), 0 ); // then, assign sourceTextureSampler to this texture unit
-
+    gl.uniform1i( loc_sourceTextureSampler, 0 ); // then, assign sourceTextureSampler to this texture unit
 
     // the strengthAndLabelTexture
     gl.activeTexture( gl.TEXTURE2 );  // bind strengthAndLabelTexture to texture unit 2
     gl.bindTexture( gl.TEXTURE_2D, textures[ 1 ] ); // use the first or second intermediate texture initially?
-    gl.uniform1i( gl.getUniformLocation( glProgram, "intermediateTextureSampler" ), 2 ); // then, assign intermediateTextureSampler to this texture unit
+    gl.uniform1i( loc_intermediateTextureSampler, 2 ); // then, assign intermediateTextureSampler to this texture unit
 
     // the coordinate attribute
     gl.bindBuffer( gl.ARRAY_BUFFER, renderImageCoordinatesBuffer );
-    var coordinateLocation = gl.getAttribLocation( glProgram, "coordinate" );
-    gl.enableVertexAttribArray( coordinateLocation );
-    gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( loc_coordinate );
+    gl.vertexAttribPointer( loc_coordinate, 3, gl.FLOAT, false, 0, 0 );
 
     // the textureCoordinate attribute
     gl.bindBuffer( gl.ARRAY_BUFFER, renderImageTextureCoordinatesBuffer );
-    var textureCoordinateLocation = gl.getAttribLocation( glProgram, "textureCoordinate" );
-    gl.enableVertexAttribArray( textureCoordinateLocation );
-    gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( loc_texCoord );
+    gl.vertexAttribPointer( loc_texCoord, 2, gl.FLOAT, false, 0, 0 );
 
-    // (debug - run once. uncomment these lines and set "numberOfIterations" to -1)
+    // (debug - run once. uncomment these lines and set 'numberOfIterations' to -1)
     //gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-
-    gl.uniform1i( gl.getUniformLocation( glProgram, "numberOfIterations" ), numberOfIterations );
-    gl.uniform1f( gl.getUniformLocation( glProgram, "edgeWeight" ), edgeWeight );
+    gl.uniform1i( loc_numIteration, numberOfIterations );
+    gl.uniform1f( loc_edgeWeight, edgeWeight );
 
     var iteration;
     for ( iteration = 0; iteration <= numberOfIterations; ++iteration ) {
-        gl.uniform1i( gl.getUniformLocation( glProgram, "iteration" ), iteration );
+        gl.uniform1i( loc_iteration, iteration );
 
         // set the frame buffer to render into
         if ( iteration < numberOfIterations ) {
             // render into one of the texture framebuffers
             gl.bindFramebuffer( gl.FRAMEBUFFER, framebuffers[ iteration % 2 ] );
+            //gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
         } else {
             // use the canvas frame buffer for last render
             gl.bindFramebuffer( gl.FRAMEBUFFER, null );
         }
-
         // the primitive, triggers the fragment shader
         gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
 
@@ -180,6 +202,33 @@ function render() {
         gl.activeTexture( gl.TEXTURE2 ); // Use TEXTURE2 as the intermediate image for Grow Cut
         gl.bindTexture( gl.TEXTURE_2D, textures[ iteration % 2 ] );
     }
+
+    /*    (function iterate (i) {
+     setTimeout(function () {
+     iteration = numberOfIterations - i;
+     gl.uniform1i( gl.getUniformLocation( glProgram, 'iteration' ), iteration );
+
+     // set the frame buffer to render into
+     if ( iteration < numberOfIterations ) {
+     // render into one of the texture framebuffers
+     gl.bindFramebuffer( gl.FRAMEBUFFER, framebuffers[ iteration % 2 ] );
+     gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
+     }
+     // use the canvas frame buffer for last render
+     gl.bindFramebuffer( gl.FRAMEBUFFER, null );
+
+     // the primitive, triggers the fragment shader
+     gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
+
+     // switch the intermediate texture
+     gl.activeTexture( gl.TEXTURE2 ); // Use TEXTURE2 as the intermediate image for Grow Cut
+     gl.bindTexture( gl.TEXTURE_2D, textures[ iteration % 2 ] );
+
+     if (--i) {          // If i > 0, keep going
+     iterate(i);       // Call the loop again, and pass it the current value of i
+     }
+     }, 10);
+     })(numberOfIterations);*/
 }
 
 function setupInterface() {
@@ -195,13 +244,16 @@ function setupInterface() {
     renderCanvas.width = sourceTextureImage.width;
     $( '#numberOfIterations' ).width( sourceTextureImage.width );
     $( '#edgeWeight' ).width( sourceTextureImage.width );
-    $.when( setupShaders( "scripts/text!shaders/test.frag", "scripts/text!shaders/test.vert" ) ).done( updateParameters );
+    $.when( setupShaders( 'scripts/text!shaders/test.frag', 'scripts/text!shaders/test.vert' ) ).done( function () {
+        storeLocations();
+        updateParameters();
+    } );
 
     //
     // user interface elements
     //
     function updateParameters() {
-        $( '#log' ).html( "... updated!" );
+        $( '#log' ).html( '... updated!' );
         numberOfIterations = Number( document.getElementById( 'numberOfIterations' ).value );
         edgeWeight = Number( document.getElementById( 'edgeWeight' ).value );
         render();
@@ -225,16 +277,19 @@ function setupInterface() {
     function normalizeCoordinate( x, y ) {
         return [ x / sourceTextureImage.width, 1. - ( y / sourceTextureImage.height ) ];
     }
+
     function startDraw( event ) {
         drawing = true;
         drawStartNumberOfIterations = numberOfIterations;
         seedPoint = normalizeCoordinate( event.offsetX, event.offsetY );
         updateDraw( event );
     }
+
     function endDraw( event ) {
         drawing = false;
         updateDraw( event );
     }
+
     function updateDraw( event ) {
         currentPoint = normalizeCoordinate( event.offsetX, event.offsetY );
         if ( drawing ) {
@@ -247,6 +302,7 @@ function setupInterface() {
         }
         updateParameters();
     }
+
     $( '#renderCanvas' ).mousedown( startDraw );
     $( '#renderCanvas' ).mousemove( updateDraw );
     $( '#renderCanvas' ).mouseup( endDraw );
@@ -257,4 +313,4 @@ function setupInterface() {
 // once document is loaded, then load images, set up textures and framebuffers, and render
 $( function () {
     $( '#sourceImage' ).load( setupInterface );
-});
+} );
