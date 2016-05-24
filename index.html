@@ -20,14 +20,26 @@
 <canvas id = "renderCanvas"></canvas>
 <table id = "parameters">
     <tr>
+        <td><input type = "button" onclick="nextIteration()" value="Next iteration"></td>
+    </tr>
+    <tr>
         <th style = "text-align: left">Number of Iterations</th>
-    </tr><tr>
-    <td><input type = "range" min = "1" max = "3000" value = "300" step = "2" id = "numberOfIterations"></td>
-</tr><tr>
-    <th style="text-align: left">Edge Weight</th>
-</tr><tr>
-    <td><input type = "range" min = "0" max = "200" value = "10" step = "1" id = "edgeWeight"></td>
-</tr>
+    </tr>
+    <tr>
+        <td><input type = "range" min = "1" max = "3000" value = "300" step = "2" id = "numberOfIterations"></td>
+    </tr>
+    <tr>
+        <th style="text-align: left">Alpha</th>
+    </tr>
+    <tr>
+        <td><input type = "number" min = "0.0" max = "1.0" value = "0.5" step = "0.01" id = "alpha"></td>
+    </tr>
+    <tr>
+        <th style="text-align: left">Edge Weight</th>
+    </tr>
+    <tr>
+        <td><input type = "range" min = "0" max = "200" value = "10" step = "1" id = "edgeWeight"></td>
+    </tr>
 </table>
 
 <p id = "log">Log output...<p>
