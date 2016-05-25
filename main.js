@@ -1,11 +1,11 @@
 'use strict';
 
 var seedOrigin = [ 0.5, 0.6 ], // holds a value to be passed as a uniform to the shader
-    seedRadius = 0.3,
-    numberOfIterations = 20,
+    seedRadius = 0.5,
+    numberOfIterations = 300,
     iteration = 0,
     edgeWeight = 10.,
-    alpha = 0.5,
+    alpha = 1.0,
     sourceTextureSize = [ 0, 0 ];
 
 //
@@ -51,13 +51,16 @@ var textures = [];
 var framebuffers = [];
 
 var setupFrameBuffers = function () {
+    gl.getExtension("OES_texture_float");
+    gl.getExtension("OES_texture_float_linear");
+
     for ( var idx = 0; idx < 2; ++idx ) {
         // create a texture for the frame buffer
         var texture = gl.createTexture();
         gl.bindTexture( gl.TEXTURE_2D, texture );
         //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // do this now at end? or not needed for intermediates? jvm
         gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, sourceTextureImage.width, sourceTextureImage.height, 0,
-            gl.RGBA, gl.UNSIGNED_BYTE, null );
+            gl.RGBA, gl.FLOAT/*UNSIGNED_BYTE*/, null );
         gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR ); // jvm - do we want nearest or linear?
         gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR );
         gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE );
@@ -128,17 +131,16 @@ var loc_seedOrigin,
     loc_distanceFieldSampler,
     loc_numIteration,
     loc_edgeWeight,
-    loc_renderToTexture,
+    loc_renderDistanceField,
     loc_alpha,
     loc_iteration;
 
 var nextIteration = function() {
-    iteration++;
-    if (iteration >= numberOfIterations) {
-        iteration = numberOfIterations;
+    if (iteration < numberOfIterations) {
+        $( '#log' ).html( 'Iteration ' + iteration );
+        iteration++;
+        renderIteration();
     }
-    render();
-    $( '#log' ).html( 'Iteration ' + iteration );
 }
 var storeLocations = function () {
     loc_position = gl.getAttribLocation( glProgram, 'position' );
@@ -151,7 +153,7 @@ var storeLocations = function () {
     loc_distanceFieldSampler = gl.getUniformLocation( glProgram, 'distanceFieldSampler' );
     loc_numIteration = gl.getUniformLocation( glProgram, 'numberOfIterations' );
     loc_edgeWeight = gl.getUniformLocation( glProgram, 'edgeWeight' );
-    loc_renderToTexture = gl.getUniformLocation( glProgram, 'renderToTexture' );
+    loc_renderDistanceField = gl.getUniformLocation( glProgram, 'renderDistanceField' );
     loc_alpha = gl.getUniformLocation( glProgram, 'alpha' );
     loc_iteration = gl.getUniformLocation( glProgram, 'iteration' );
 }
@@ -175,6 +177,8 @@ function render() {
     // set up the sourceTexelSize
     gl.uniform2f( loc_sourceTexelSize, 1.0 / sourceTextureSize[ 0 ], 1.0 / sourceTextureSize[ 1 ] );
 
+    $( '#log' ).html( 'source texel size: [' + 1.0 / sourceTextureSize[ 0 ] + ', ' + 1.0 / sourceTextureSize[ 1 ] + ']' );
+
     // the sourceTexture
     gl.activeTexture( gl.TEXTURE0 );  // bind sourceTexture to texture unit 0
     gl.bindTexture( gl.TEXTURE_2D, sourceTexture );
@@ -182,7 +186,7 @@ function render() {
 
     // the strengthAndLabelTexture
     gl.activeTexture( gl.TEXTURE2 );  // bind strengthAndLabelTexture to texture unit 2
-    gl.bindTexture( gl.TEXTURE_2D, textures[ iteration % 2 ] ); // use the first or second intermediate texture initially?
+    gl.bindTexture( gl.TEXTURE_2D, textures[ 1 ] ); // use the first or second intermediate texture initially?
     gl.uniform1i( loc_distanceFieldSampler, 2 ); // then, assign intermediateTextureSampler to this texture unit
 
     // the coordinate attribute
@@ -199,26 +203,7 @@ function render() {
     gl.uniform1f( loc_edgeWeight, edgeWeight );
     gl.uniform1f( loc_edgeWeight, alpha );
 
-    //var iteration;
-    //for ( iteration = 0; iteration <= numberOfIterations; ++iteration ) {
-    gl.uniform1i( loc_iteration, iteration );
 
-    //if ( iteration < numberOfIterations ) {
-        // render into one of the texture framebuffers
-    gl.uniform1i( loc_renderToTexture, 1 );
-    gl.bindFramebuffer( gl.FRAMEBUFFER, framebuffers[ (iteration + 1) % 2 ] );
-    gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
-    //} else {
-        // use the canvas frame buffer for last render
-    gl.uniform1i( loc_renderToTexture, 0 );
-    gl.bindFramebuffer( gl.FRAMEBUFFER, null );
-    gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
-    //}
-
-    // switch the intermediate texture
-    //gl.activeTexture( gl.TEXTURE2 ); // Use TEXTURE2 as the intermediate image for Grow Cut
-    //gl.bindTexture( gl.TEXTURE_2D, textures[ iteration % 2 ] );
-    //}
 
     /*    (function iterate (i) {
      setTimeout(function () {
@@ -248,7 +233,29 @@ function render() {
      })(numberOfIterations);*/
 }
 
-fu
+function renderIteration() {
+    //var iteration;
+    //for ( iteration = 0; iteration <= numberOfIterations; ++iteration ) {
+    gl.uniform1i( loc_iteration, iteration );
+
+    //if ( iteration < numberOfIterations ) {
+    // render into one of the texture framebuffers
+    gl.uniform1i( loc_renderDistanceField, 1 );
+    gl.bindFramebuffer( gl.FRAMEBUFFER, framebuffers[ iteration % 2 ] );
+    gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
+    //} else {
+    // use the canvas frame buffer for last render
+    //}
+
+    // switch the intermediate texture
+    gl.activeTexture( gl.TEXTURE2 ); // Use TEXTURE2 as the intermediate image for Grow Cut
+    gl.bindTexture( gl.TEXTURE_2D, textures[ iteration % 2 ] );
+    //}
+
+    gl.uniform1i( loc_renderDistanceField, 0 );
+    gl.bindFramebuffer( gl.FRAMEBUFFER, null );
+    gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
+}
 
 function setupInterface() {
     //
@@ -273,10 +280,24 @@ function setupInterface() {
     //
     function updateParameters() {
         numberOfIterations = Number( document.getElementById( 'numberOfIterations' ).value );
-        edgeWeight = Number( document.getElementById( 'edgeWeight' ).value );
-        alpha = Number( document.getElementById( 'alpha' ).value );
+        //edgeWeight = Number( document.getElementById( 'edgeWeight' ).value );
+        //alpha = Number( document.getElementById( 'alpha' ).value );
         iteration = 0;
         render();
+        renderIteration();
+
+        (function iterate (i) {
+            setTimeout(function () {
+                nextIteration();
+                if (--i) {          // If i > 0, keep going
+                    iterate(i);// Call the loop again, and pass it the current value of i
+                }
+            }, 50);
+        })(numberOfIterations);
+
+        /*while ( iteration < numberOfIterations) {
+            nextIteration();
+        }*/
     }
 
     // listen to continuous and release events
@@ -326,9 +347,9 @@ function setupInterface() {
     }
 
     $( '#renderCanvas' ).mousedown( startDraw );
-    $( '#renderCanvas' ).mousemove( updateDraw );
+    //$( '#renderCanvas' ).mousemove( updateDraw );
     $( '#renderCanvas' ).mouseup( endDraw );
-    $( '#renderCanvas' ).mouseout( endDraw );
+    //$( '#renderCanvas' ).mouseout( endDraw );
 
 }
 
