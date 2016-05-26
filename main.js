@@ -4,7 +4,6 @@ var seedOrigin = [ 0.5, 0.6 ], // holds a value to be passed as a uniform to the
     seedRadius = 0.5,
     numberOfIterations = 300,
     iteration = 0,
-    edgeWeight = 10.,
     alpha = 1.0,
     sourceTextureSize = [ 0, 0 ];
 
@@ -130,7 +129,6 @@ var loc_seedOrigin,
     loc_sourceTextureSampler,
     loc_distanceFieldSampler,
     loc_numIteration,
-    loc_edgeWeight,
     loc_renderDistanceField,
     loc_alpha,
     loc_iteration;
@@ -152,7 +150,6 @@ var storeLocations = function () {
     loc_sourceTextureSampler = gl.getUniformLocation( glProgram, 'sourceTextureSampler' );
     loc_distanceFieldSampler = gl.getUniformLocation( glProgram, 'distanceFieldSampler' );
     loc_numIteration = gl.getUniformLocation( glProgram, 'numberOfIterations' );
-    loc_edgeWeight = gl.getUniformLocation( glProgram, 'edgeWeight' );
     loc_renderDistanceField = gl.getUniformLocation( glProgram, 'renderDistanceField' );
     loc_alpha = gl.getUniformLocation( glProgram, 'alpha' );
     loc_iteration = gl.getUniformLocation( glProgram, 'iteration' );
@@ -200,8 +197,7 @@ function render() {
     gl.vertexAttribPointer( loc_texCoord, 2, gl.FLOAT, false, 0, 0 );
 
     gl.uniform1i( loc_numIteration, numberOfIterations );
-    gl.uniform1f( loc_edgeWeight, edgeWeight );
-    gl.uniform1f( loc_edgeWeight, alpha );
+    gl.uniform1f( loc_alpha, alpha );
 
 
 
@@ -269,7 +265,6 @@ function setupInterface() {
     renderCanvas.height = sourceTextureImage.height;
     renderCanvas.width = sourceTextureImage.width;
     $( '#numberOfIterations' ).width( sourceTextureImage.width );
-    $( '#edgeWeight' ).width( sourceTextureImage.width );
     $.when( setupShaders( 'scripts/text!shaders/test.frag', 'scripts/text!shaders/test.vert' ) ).done( function () {
         storeLocations();
         updateParameters();
@@ -280,8 +275,7 @@ function setupInterface() {
     //
     function updateParameters() {
         numberOfIterations = Number( document.getElementById( 'numberOfIterations' ).value );
-        //edgeWeight = Number( document.getElementById( 'edgeWeight' ).value );
-        //alpha = Number( document.getElementById( 'alpha' ).value );
+        alpha = Number( document.getElementById( 'alpha' ).value );
         iteration = 0;
         render();
         renderIteration();
@@ -292,7 +286,7 @@ function setupInterface() {
                 if (--i) {          // If i > 0, keep going
                     iterate(i);// Call the loop again, and pass it the current value of i
                 }
-            }, 50);
+            }, 5);
         })(numberOfIterations);
 
         /*while ( iteration < numberOfIterations) {
@@ -304,8 +298,6 @@ function setupInterface() {
     // http://stackoverflow.com/questions/18544890/onchange-event-on-input-type-range-is-not-triggering-in-firefox-while-dragging
     document.getElementById( 'numberOfIterations' ).onchange = updateParameters;
     document.getElementById( 'numberOfIterations' ).oninput = updateParameters;
-    document.getElementById( 'edgeWeight' ).onchange = updateParameters;
-    document.getElementById( 'edgeWeight' ).oninput = updateParameters;
     document.getElementById( 'alpha' ).onchange = updateParameters;
     document.getElementById( 'alpha' ).oninput = updateParameters;
 
@@ -314,7 +306,6 @@ function setupInterface() {
     //
 
     var drawing = false;
-    var drawStartNumberOfIterations;
     var currentPoint = [ 0., 0. ];
 
     function normalizeCoordinate( x, y ) {
@@ -322,15 +313,21 @@ function setupInterface() {
     }
 
     function startDraw( event ) {
+        event.preventDefault();
         drawing = true;
-        drawStartNumberOfIterations = numberOfIterations;
         seedOrigin = normalizeCoordinate( event.offsetX, event.offsetY );
-        updateDraw( event );
+        $( '#log' ).html( 'Start draw' );
     }
 
     function endDraw( event ) {
+        event.preventDefault();
         drawing = false;
-        updateDraw( event );
+        currentPoint = normalizeCoordinate( event.offsetX, event.offsetY );
+        var dist_x = seedOrigin.x - currentPoint.x;
+        var dist_y = seedOrigin.y - currentPoint.y;
+        seedRadius = sqrt( dist_x * dist_x + dist_y * dist_y );
+        updateParameters();
+        $( '#log' ).html( 'End draw' );
     }
 
     function updateDraw( event ) {
@@ -338,10 +335,6 @@ function setupInterface() {
         if ( drawing ) {
             var iterationDelta = Math.round( 2000. * ( currentPoint[ 0 ] - seedOrigin[ 0 ] ) );
             document.getElementById( 'numberOfIterations' ).value = drawStartNumberOfIterations + iterationDelta;
-
-            // // disabled for now
-            // edgeWeight = 1. + 50. * Math.abs(seedOrigin[1]-currentPoint[1]);
-            // document.getElementById('edgeWeight').value = edgeWeight;
         }
         updateParameters();
     }
