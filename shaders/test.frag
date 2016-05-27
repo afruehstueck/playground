@@ -12,6 +12,7 @@ uniform vec2 sourceTexelSize;
 uniform vec2 seedOrigin;
 uniform float seedRadius;
 uniform int iteration;
+uniform float epsilon;
 uniform int renderDistanceField;
 uniform int numberOfIterations;
 uniform float edgeWeight;
@@ -26,7 +27,16 @@ vec4 encode_float( const in float value ) {
     vec4 res = fract( value * bit_shift );
     res -= res.xxyz * bit_mask;
     return res;*/
-    return vec4(value, 0., 0., 0.);
+    return vec4( value, 0., 0., 0. );
+}
+
+vec4 encode_float( const in float value1, const in float value2 ) {
+/*    const vec4 bit_shift = vec4( 256. * 256. * 256., 256. * 256., 256., 1. );
+    const vec4 bit_mask  = vec4( 0., 1. / 256., 1. / 256., 1. / 256. );
+    vec4 res = fract( value * bit_shift );
+    res -= res.xxyz * bit_mask;
+    return res;*/
+    return vec4( value1, value2, 0., 0. );
 }
 
 vec4 encode_float( const in float value, float min, float max ) {
@@ -62,12 +72,14 @@ vec4 initialize_distance_field( void ) {
 
     //normalize to [0, 1] range
 
-    return encode_float_normalized( current_distance );
+    //return encode_float_normalized( current_distance );
+    float normalized_distance = ( current_distance + 1. ) / 2.;
+    return vec4( normalized_distance, 0., 0., 0. );
 }
 
 float get_offset_texture_value( float offset_x, float offset_y ) {
     vec4 encoded_value = texture2D( distanceFieldSampler, textureCoordinate + vec2(offset_x, offset_y) * sourceTexelSize );
-    return decode_float_normalized( encoded_value );
+    return encoded_value.r * 2. - 1.;
 }
 
 void main( void ) {
@@ -76,7 +88,7 @@ void main( void ) {
   // Rest of the iterations, run the pde
 
   vec4 encoded_distance = texture2D( distanceFieldSampler, textureCoordinate );
-  float current_distance = decode_float_normalized( encoded_distance );
+  float current_distance = encoded_distance.r * 2. - 1.;
 
   //TODO this is a temporary choice in selecting the target value
   vec4 target_color = texture2D( sourceTextureSampler, seedOrigin );
@@ -123,46 +135,51 @@ void main( void ) {
         return;
     }
 
-    float npx_dif = ( Dypx + Dy ) / 2.;
-    float npy_dif = ( Dxpy + Dx ) / 2.;
+    float nxp_dif = ( Dypx + Dy ) / 2.;
+    float nyp_dif = ( Dxpy + Dx ) / 2.;
 
-    float npx_denom = sqrt( Dxp * Dxp + npx_dif * npx_dif );
-    float npy_denom = sqrt( Dyp * Dyp + npy_dif * npy_dif );
+    float nxp_denom = sqrt( Dxp * Dxp + nxp_dif * nxp_dif );
+    float nyp_denom = sqrt( Dyp * Dyp + nyp_dif * nyp_dif );
 
-    //float npx = Dxp / ( ( npx_denom > 0. ) ? npx_denom : 1. );
-    float npx = ( npx_denom > 0. ) ? ( Dxp / npx_denom ) : 0.;
-    //float npy = Dyp / ( ( npy_denom > 0. ) ? npy_denom : 1. );
-    float npy = ( npy_denom > 0. ) ? ( Dyp / npy_denom ) : 0.;
+    float nxp = Dxp / ( ( nxp_denom > 0. ) ? nxp_denom : 1. );
+    float nyp = Dyp / ( ( nyp_denom > 0. ) ? nyp_denom : 1. );
 
     float nmx_dif = ( Dymx + Dy ) / 2.;
     float nmy_dif = ( Dxmy + Dx ) / 2.;
 
-    float nmx_denom = sqrt( Dxm * Dxm + nmx_dif * nmx_dif );
-    float nmy_denom = sqrt( Dym * Dym + nmy_dif * nmy_dif );
+    float nxm_denom = sqrt( Dxm * Dxm + nmx_dif * nmx_dif );
+    float nym_denom = sqrt( Dym * Dym + nmy_dif * nmy_dif );
 
-    float nmx = Dxm / ( ( nmx_denom > 0. ) ? nmx_denom : 1. );
-    //float nmx = ( nmx_denom > 0. ) ? ( Dxm / nmx_denom ) : 0.;
-    float nmy = Dym / ( ( nmy_denom > 0. ) ? nmy_denom : 1. );
-    //float nmy = ( nmy_denom > 0. ) ? ( Dym / nmy_denom ) : 0.;
+    float nxm = Dxm / ( ( nxm_denom > 0. ) ? nxm_denom : 1. );
+    float nym = Dym / ( ( nym_denom > 0. ) ? nym_denom : 1. );
 
-    float H = ( npx - nmx + npy - nmy ) / 2.;
+    float H = ( nxp - nxm + nyp - nym ) / 2.;
 
-    float max_Dxp = max( Dxp, 0. );
+    if( abs( u1 ) == 1. ||
+        abs( u3 ) == 1. ||
+        abs( u4 ) == 1. ||
+        abs( u5 ) == 1. ||
+        abs( u7 ) == 1. ) {
+            // region with (potentially) clamped values
+        H = 0.;
+    }
+
+    float max_Dxp  = max(  Dxp, 0. );
     float max_mDxm = max( -Dxm, 0. );
-    float max_Dyp = max( Dyp, 0. );
+    float max_Dyp  = max(  Dyp, 0. );
     float max_mDym = max( -Dym, 0. );
     vec2 grad_phi_max = vec2( sqrt( max_Dxp * max_Dxp + max_mDxm * max_mDxm ), sqrt( max_Dyp * max_Dyp + max_mDym * max_mDym ) );
 
-    float min_Dxp = min( Dxp, 0. );
+    float min_Dxp  = min(  Dxp, 0. );
     float min_mDxm = min( -Dxm, 0. );
-    float min_Dyp = min( Dyp, 0. );
+    float min_Dyp  = min(  Dyp, 0. );
     float min_mDym = min( -Dym, 0. );
     vec2 grad_phi_min = vec2( sqrt( min_Dxp * min_Dxp + min_mDxm * min_mDxm ), sqrt( min_Dyp * min_Dyp + min_mDym * min_mDym ) );
 
-    float eps = 0.01;
+    //epsilon = 0.2;
     float target_value = target_color.x;
     //TODO consider which intensity value is used
-    float D = eps - abs( source_color.x - target_value );
+    float D = epsilon - abs( source_color.x - target_value );
 
     float speed_function = D;//alpha * D + ( 1. - alpha ) * H;
     float gradient_mag = (speed_function > 0.) ? length( grad_phi_max ) : length( grad_phi_min );
@@ -170,21 +187,26 @@ void main( void ) {
 
     float final_value = current_distance + update_value;
 
-
-    gl_FragColor = encode_float_normalized( final_value );
+    float normalized_final_value = ( final_value + 1. ) / 2.;
+    gl_FragColor = vec4( normalized_final_value, gradient_mag, 0., 0. );
     //gl_FragColor = encode_float_normalized( ( final_value > 0. ) ? 0.5 : 1. );
 
 
     return;
   } else if ( renderDistanceField == 0 ) {
     float absDistance = abs( current_distance );
-    //vec4 outputColor = vec4( (current_distance > 0.) ? absDistance : 0., (current_distance > 0.) ? absDistance : 0., (current_distance < 0.) ? absDistance : 0., 1. );
-    //vec4 outputColor = vec4( absDistance, absDistance, absDistance, 1. );
+    float current_gradient = encoded_distance.g * 2. - 1.;
+    //vec4 outputColor = vec4( (current_distance > 0.) ? absDistance : 0., 0., (current_distance < 0.) ? absDistance : 0., 1. );
+
     vec4 outputColor = source_color;
 
+    float eps = 0.008;
     /* draw outline of border */
-    if ( absDistance < 0.005 ) {
-        outputColor += vec4( .4, .4, -.2, 1.0 );
+    /*if ( absDistance <= ( ( current_gradient > 0. ) ? eps / current_gradient : eps ) ) {
+        outputColor += vec4( .0, .4, .6, 1. );
+    }*/
+    if( current_distance > 0. ) {
+        outputColor += vec4( .0, .4, .6, max( .1 - current_distance, 0. ) );
     }
 
     gl_FragColor = outputColor;
