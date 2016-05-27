@@ -13,9 +13,7 @@
     Processed Image
 </h2>
 <p>
-    Click in lower image to move seed point.
-
-    Dragging left/right adjusts number of iterations (segmentation size).
+    Click and drag in image to center seed point and adjust seed radius.
 </p>
 <canvas id = "renderCanvas"></canvas>
 <table id = "parameters">
@@ -26,7 +24,7 @@
         <th style = "text-align: left">Number of Iterations</th>
     </tr>
     <tr>
-        <td><input type = "number" min = "1" max = "3000" value = "300" step = "1" id = "numberOfIterations"></td>
+        <td><input type = "number" min = "1" max = "3000" value = "500" step = "1" id = "numberOfIterations"></td>
     </tr>
     <tr>
         <th style="text-align: left">Alpha</th>
@@ -34,6 +32,13 @@
     <tr>
         <td><input type = "number" min = "0.0" max = "1.0" value = "0.5" step = "0.01" id = "alpha"></td>
     </tr>
+    <tr>
+        <th style="text-align: left">Epsilon</th>
+    </tr>
+    <tr>
+        <td><input type = "number" min = "0.0" max = "1.0" value = "0.2" step = "0.01" id = "epsilon"></td>
+    </tr>
+
 </table>
 
 <p id = "log">Log output...<p>

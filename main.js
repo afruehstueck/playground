@@ -1,17 +1,23 @@
 'use strict';
 
-var seedOrigin = [ 0.5, 0.6 ], // holds a value to be passed as a uniform to the shader
-    seedRadius = 0.5,
-    numberOfIterations = 300,
+var seedOrigin = [ 0.3, 0.45 ], // holds a value to be passed as a uniform to the shader
+    seedRadius = 0.1,
+    numberOfIterations = 30,
     iteration = 0,
     alpha = 1.0,
-    sourceTextureSize = [ 0, 0 ];
+    epsilon = 1.0,
+    sourceTextureSize = [ 0, 0 ],
+    autoIterate = true;
 
 //
 // set up webGL
 //
 var renderCanvas = document.querySelector( '#renderCanvas' );
 var gl = renderCanvas.getContext( 'webgl' );
+
+if ( !gl ) { alert( "Your browser does not support WebGL. " +
+                    "Please use a WebGL-enabled explorer such as Chrome." ); }
+
 gl.clearColor( 0.0, 0.0, 0.0, 1.0 ); // black, fully opaque
 gl.enable( gl.DEPTH_TEST );
 gl.depthFunc( gl.LEQUAL ); // Near things obscure far things
@@ -131,11 +137,12 @@ var loc_seedOrigin,
     loc_numIteration,
     loc_renderDistanceField,
     loc_alpha,
+    loc_epsilon,
     loc_iteration;
 
 var nextIteration = function() {
     if (iteration < numberOfIterations) {
-        $( '#log' ).html( 'Iteration ' + iteration );
+        $( '#log' ).html( 'Iteration ' + ( iteration + 1 ) + '/' + numberOfIterations );
         iteration++;
         renderIteration();
     }
@@ -152,6 +159,7 @@ var storeLocations = function () {
     loc_numIteration = gl.getUniformLocation( glProgram, 'numberOfIterations' );
     loc_renderDistanceField = gl.getUniformLocation( glProgram, 'renderDistanceField' );
     loc_alpha = gl.getUniformLocation( glProgram, 'alpha' );
+    loc_epsilon = gl.getUniformLocation( glProgram, 'epsilon' );
     loc_iteration = gl.getUniformLocation( glProgram, 'iteration' );
 }
 
@@ -173,8 +181,6 @@ function render() {
 
     // set up the sourceTexelSize
     gl.uniform2f( loc_sourceTexelSize, 1.0 / sourceTextureSize[ 0 ], 1.0 / sourceTextureSize[ 1 ] );
-
-    $( '#log' ).html( 'source texel size: [' + 1.0 / sourceTextureSize[ 0 ] + ', ' + 1.0 / sourceTextureSize[ 1 ] + ']' );
 
     // the sourceTexture
     gl.activeTexture( gl.TEXTURE0 );  // bind sourceTexture to texture unit 0
@@ -198,6 +204,7 @@ function render() {
 
     gl.uniform1i( loc_numIteration, numberOfIterations );
     gl.uniform1f( loc_alpha, alpha );
+    gl.uniform1f( loc_epsilon, epsilon );
 
 
 
@@ -264,7 +271,7 @@ function setupInterface() {
     setupFrameBuffers();
     renderCanvas.height = sourceTextureImage.height;
     renderCanvas.width = sourceTextureImage.width;
-    $( '#numberOfIterations' ).width( sourceTextureImage.width );
+    //$( '#numberOfIterations' ).width( sourceTextureImage.width );
     $.when( setupShaders( 'scripts/text!shaders/test.frag', 'scripts/text!shaders/test.vert' ) ).done( function () {
         storeLocations();
         updateParameters();
@@ -276,19 +283,21 @@ function setupInterface() {
     function updateParameters() {
         numberOfIterations = Number( document.getElementById( 'numberOfIterations' ).value );
         alpha = Number( document.getElementById( 'alpha' ).value );
+        epsilon = Number( document.getElementById( 'epsilon' ).value );
         iteration = 0;
         render();
         renderIteration();
 
-        (function iterate (i) {
-            setTimeout(function () {
-                nextIteration();
-                if (--i) {          // If i > 0, keep going
-                    iterate(i);// Call the loop again, and pass it the current value of i
-                }
-            }, 5);
-        })(numberOfIterations);
-
+        if( autoIterate ) {
+            (function iterate( i ) {
+                setTimeout( function () {
+                    nextIteration();
+                    if ( --i ) {          // If i > 0, keep going
+                        iterate( i );// Call the loop again, and pass it the current value of i
+                    }
+                }, 10 );
+            })( numberOfIterations );
+        }
         /*while ( iteration < numberOfIterations) {
             nextIteration();
         }*/
@@ -300,12 +309,16 @@ function setupInterface() {
     document.getElementById( 'numberOfIterations' ).oninput = updateParameters;
     document.getElementById( 'alpha' ).onchange = updateParameters;
     document.getElementById( 'alpha' ).oninput = updateParameters;
+    document.getElementById( 'epsilon' ).oninput = updateParameters;
+    document.getElementById( 'epsilon' ).onchange = updateParameters;
 
     //
     // drawing functions
     //
 
-    var drawing = false;
+    var drawRadius = false;
+    var selectTarget = false;
+    var startPoint = [ 0., 0. ];
     var currentPoint = [ 0., 0. ];
 
     function normalizeCoordinate( x, y ) {
@@ -314,35 +327,35 @@ function setupInterface() {
 
     function startDraw( event ) {
         event.preventDefault();
-        drawing = true;
+        drawRadius = true;
         seedOrigin = normalizeCoordinate( event.offsetX, event.offsetY );
-        $( '#log' ).html( 'Start draw' );
+        //seedOrigin = normalizeCoordinate( event.offsetX, event.offsetY );
     }
 
     function endDraw( event ) {
+        if ( !drawRadius ) {
+            return;
+        }
         event.preventDefault();
-        drawing = false;
+        drawRadius = false;
         currentPoint = normalizeCoordinate( event.offsetX, event.offsetY );
-        var dist_x = seedOrigin.x - currentPoint.x;
-        var dist_y = seedOrigin.y - currentPoint.y;
-        seedRadius = sqrt( dist_x * dist_x + dist_y * dist_y );
+        var dist_x = seedOrigin[0] - currentPoint[0];
+        var dist_y = seedOrigin[1] - currentPoint[1];
+        seedRadius = Math.sqrt( dist_x * dist_x + dist_y * dist_y );
+
         updateParameters();
-        $( '#log' ).html( 'End draw' );
     }
 
     function updateDraw( event ) {
-        currentPoint = normalizeCoordinate( event.offsetX, event.offsetY );
-        if ( drawing ) {
-            var iterationDelta = Math.round( 2000. * ( currentPoint[ 0 ] - seedOrigin[ 0 ] ) );
-            document.getElementById( 'numberOfIterations' ).value = drawStartNumberOfIterations + iterationDelta;
+        if ( !drawRadius ) {
+            return;
         }
-        updateParameters();
     }
 
     $( '#renderCanvas' ).mousedown( startDraw );
-    //$( '#renderCanvas' ).mousemove( updateDraw );
+    $( '#renderCanvas' ).mousemove( updateDraw );
     $( '#renderCanvas' ).mouseup( endDraw );
-    //$( '#renderCanvas' ).mouseout( endDraw );
+    $( '#renderCanvas' ).mouseout( endDraw );
 
 }
 
